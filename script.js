@@ -516,21 +516,8 @@ function displayStockInfo(stock) {
     document.getElementById('stockName').textContent = stock.name;
     document.getElementById('stockSector').textContent = stock.sector || 'N/A';
     
-    // Price info
+    // Price info - formatted with 2 decimal places
     document.getElementById('currentPrice').textContent = formatCurrency(stock.price);
-    
-    const change = stock.price - (stock.previousClose || stock.price);
-    const changePercent = stock.previousClose ? ((change / stock.previousClose) * 100) : 0;
-    
-    const priceChangeEl = document.getElementById('priceChange');
-    const changeClass = change >= 0 ? 'positive' : 'negative';
-    const changeSymbol = change >= 0 ? '↑' : '↓';
-    
-    priceChangeEl.className = `price-change ${changeClass}`;
-    priceChangeEl.innerHTML = `
-        <span class="change-amount">${changeSymbol} ${formatCurrency(Math.abs(change))}</span>
-        <span class="change-percent">(${change >= 0 ? '+' : ''}${changePercent.toFixed(2)}%)</span>
-    `;
     
     // Details
     document.getElementById('volume').textContent = formatNumber(stock.volume);
@@ -542,10 +529,8 @@ function displayStockInfo(stock) {
 }
 
 function displayPredictions(predictions, currentPrice) {
-    // Helper function to format price based on value
+    // Helper function to format price with consistent 2 decimal places
     const formatPrice = (price) => {
-        if (price < 1) return '$' + price.toFixed(4);
-        if (price < 100) return '$' + price.toFixed(2);
         return formatCurrency(price);
     };
     
@@ -598,7 +583,7 @@ function displayPredictions(predictions, currentPrice) {
 
 function formatCurrency(value) {
     if (value === null || value === undefined) return 'N/A';
-    return '$' + Math.round(value).toLocaleString('en-US');
+    return '$' + parseFloat(value).toFixed(2);
 }
 
 function formatNumber(value) {

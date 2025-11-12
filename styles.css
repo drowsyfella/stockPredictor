@@ -115,13 +115,29 @@ body {
 .search-title {
     font-size: 24px;
     font-weight: 600;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
     color: var(--text-primary);
+}
+
+.data-disclaimer {
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 24px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    text-align: center;
 }
 
 @media (min-width: 641px) {
     .search-title {
         font-size: 28px;
+    }
+    
+    .data-disclaimer {
+        font-size: 15px;
+        padding: 14px 20px;
     }
 }
 
