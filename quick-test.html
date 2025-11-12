@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quick Google Sheets Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>Quick Google Sheets Test</h1>
+    <button onclick="testFetch()">Test Fetch</button>
+    <div id="output"></div>
+
+    <script>
+        const url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT-RkFu9NSR9i9PQEwd9-1TmW7JiZuZyAYxyaGqNG9V3i8vr7WQQaqFvx01bzjZbL3G7rGPkdmRBXyl/pub?output=csv';
+        
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = message;
+            output.appendChild(div);
+        }
+        
+        async function testFetch() {
+            document.getElementById('output').innerHTML = '';
+            log('🔄 Testing Google Sheets URL...', 'info');
+            log(`📍 URL: ${url}`, 'info');
+            
+            try {
+                const response = await fetch(url);
+                log(`📊 Response Status: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+                log(`📋 Content-Type: ${response.headers.get('content-type')}`, 'info');
+                
+                if (response.ok) {
+                    const text = await response.text();
+                    log(`✅ Data received! Length: ${text.length} characters`, 'success');
+                    
+                    // Show first 500 characters
+                    const preview = text.substring(0, 500);
+                    log(`📄 Preview (first 500 chars):<br><pre>${preview}${text.length > 500 ? '...' : ''}</pre>`, 'info');
+                    
+                    // Count lines
+                    const lines = text.split('\n');
+                    log(`📝 Total lines: ${lines.length}`, 'info');
+                    
+                    if (lines.length > 1) {
+                        log(`🔍 First line (headers): ${lines[0]}`, 'info');
+                        if (lines.length > 2) {
+                            log(`🔍 Second line (first data): ${lines[1]}`, 'info');
+                        }
+                    }
+                } else {
+                    log(`❌ Failed to fetch data`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+                log(`🔧 Error type: ${error.name}`, 'info');
+                
+                if (error.message.includes('CORS')) {
+                    log(`💡 CORS Issue: The Google Sheet might not be publicly accessible or has CORS restrictions.`, 'info');
+                } else if (error.message.includes('Failed to fetch')) {
+                    log(`💡 Network Issue: Check your internet connection or the sheet URL.`, 'info');
+                }
+            }
+        }
+        
+        // Auto-run test on page load
+        window.onload = testFetch;
+    </script>
+</body>
+</html>

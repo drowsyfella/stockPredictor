@@ -3,10 +3,11 @@
 // ===================================
 
 // Stock Data API Configuration
-// Using Yahoo Finance API for real-time stock data
-// Currently using demo data - Yahoo Finance API integration pending
+// Using Google Sheets with real-time GoogleFinance data
+// Data source: Google Sheets CSV with GOOGLEFINANCE() formulas
 
-const USE_YAHOO_API = false; // Set to true when Yahoo Finance API is configured
+const USE_GOOGLE_SHEETS = true; // Using Google Sheets CSV data
+const GOOGLE_SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT-RkFu9NSR9i9PQEwd9-1TmW7JiZuZyAYxyaGqNG9V3i8vr7WQQaqFvx01bzjZbL3G7rGPkdmRBXyl/pub?output=csv';
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 const DEBOUNCE_DELAY = 300; // 300ms
 
@@ -121,21 +122,87 @@ async function fetchWithCache(url) {
 }
 
 async function loadAllStocks() {
-    // Use our curated list of US stocks, Forex, and Crypto
-    // MOCK_STOCKS loaded from demo-data.js
+    try {
+        if (USE_GOOGLE_SHEETS) {
+            console.log('Loading stocks from Google Sheets...');
+            // Load stocks from Google Sheets CSV
+            const response = await fetch(GOOGLE_SHEETS_CSV_URL, {
+                method: 'GET',
+                mode: 'cors',
+                headers: {
+                    'Accept': 'text/csv,text/plain,*/*'
+                }
+            });
+            
+            if (response.ok) {
+                const csvText = await response.text();
+                console.log('CSV loaded, parsing stocks...');
+                
+                if (csvText && csvText.trim().length > 0) {
+                    const sheetsStocks = parseAllStocksFromCSV(csvText);
+                    if (sheetsStocks.length > 0) {
+                        allStocks = sheetsStocks;
+                        console.log(`✅ Loaded ${allStocks.length} stocks from Google Sheets`);
+                        return;
+                    }
+                }
+            } else {
+                console.error(`Failed to load Google Sheets: ${response.status} - ${response.statusText}`);
+            }
+        }
+    } catch (error) {
+        console.error('Error loading stocks from Google Sheets:', error);
+        
+        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+            console.error('Network error: Unable to connect to Google Sheets');
+        } else if (error.message.includes('CORS')) {
+            console.error('CORS error: Google Sheets access blocked');
+        }
+    }
+    
+    // Fallback to demo data
     allStocks = MOCK_STOCKS;
-    console.log(`Loaded ${allStocks.length} assets for search (US stocks, Forex, Crypto)`);
+    console.log(`📊 Using demo data: ${allStocks.length} assets (US stocks, Forex, Crypto)`);
+}
+
+// Parse all stocks from CSV for search functionality
+function parseAllStocksFromCSV(csvText) {
+    const lines = csvText.trim().split('\n');
+    
+    if (lines.length < 2) {
+        return [];
+    }
+    
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    const stocks = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+        
+        if (values.length >= headers.length && values[0]) {
+            const stockData = parseStockDataFromCSV(headers, values);
+            if (stockData.symbol) {
+                stocks.push({
+                    symbol: stockData.symbol,
+                    name: stockData.name || stockData.symbol,
+                    sector: stockData.sector || 'N/A'
+                });
+            }
+        }
+    }
+    
+    return stocks;
 }
 
 async function fetchStockDetails(symbol) {
     try {
-        // Use Yahoo Finance API if enabled
-        if (USE_YAHOO_API) {
-            return await fetchFromYahooFinance(symbol);
+        // Use Google Sheets CSV data if enabled
+        if (USE_GOOGLE_SHEETS) {
+            return await fetchFromGoogleSheets(symbol);
         }
         
-        // Fallback to demo data (API not configured yet)
-        throw new Error('API not configured, using demo data');
+        // Fallback to demo data (Google Sheets not configured)
+        throw new Error('Google Sheets not configured, using demo data');
         
     } catch (error) {
         console.error('Error fetching stock data:', error);
@@ -144,7 +211,7 @@ async function fetchStockDetails(symbol) {
         const mockStock = MOCK_STOCKS.find(s => s.symbol === symbol);
         if (mockStock) {
             console.log(`ℹ️ Using demo data for ${symbol}`);
-            showErrorMessage(`ℹ️ Using high-quality demo data. Yahoo Finance API integration pending.`);
+            showErrorMessage(`ℹ️ Using demo data. Google Sheets integration issue: ${error.message}`);
             setTimeout(hideErrorMessage, 5000);
             return mockStock;
         }
@@ -153,43 +220,188 @@ async function fetchStockDetails(symbol) {
     }
 }
 
-// Yahoo Finance API fetcher
-// TODO: Implement Yahoo Finance API integration after authentication setup
-async function fetchFromYahooFinance(symbol) {
-    console.log(`Fetching data for ${symbol} from Yahoo Finance...`);
+// Google Sheets CSV fetcher with multiple fallback methods
+async function fetchFromGoogleSheets(symbol) {
+    console.log(`Fetching data for ${symbol} from Google Sheets...`);
     
-    try {
-        // TODO: Add Yahoo Finance API endpoint here
-        // Example endpoint structure (to be configured):
-        // const url = `YOUR_YAHOO_FINANCE_API_ENDPOINT?symbol=${symbol}`;
+    // Try multiple approaches to fetch the data
+    const fetchMethods = [
+        // Method 1: Direct fetch with CORS
+        async () => {
+            console.log('Trying direct fetch...');
+            const response = await fetch(GOOGLE_SHEETS_CSV_URL, {
+                method: 'GET',
+                mode: 'cors',
+                headers: {
+                    'Accept': 'text/csv,text/plain,*/*'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+            }
+            
+            return await response.text();
+        },
         
-        // Placeholder - will be implemented after Yahoo Finance API setup
-        throw new Error('Yahoo Finance API not yet configured');
+        // Method 2: Try with no-cors mode (limited but might work)
+        async () => {
+            console.log('Trying no-cors fetch...');
+            const response = await fetch(GOOGLE_SHEETS_CSV_URL, {
+                method: 'GET',
+                mode: 'no-cors'
+            });
+            
+            // Note: no-cors mode doesn't allow reading response, so this is mainly for cache
+            throw new Error('no-cors mode cannot read response');
+        },
         
-        // When implemented, transform Yahoo Finance response to our format:
-        // const stockData = {
-        //     symbol: symbol,
-        //     name: data.longName || data.shortName || symbol,
-        //     sector: data.sector || 'N/A',
-        //     price: data.regularMarketPrice || 0,
-        //     previousClose: data.regularMarketPreviousClose || 0,
-        //     open: data.regularMarketOpen || 0,
-        //     dayHigh: data.regularMarketDayHigh || 0,
-        //     dayLow: data.regularMarketDayLow || 0,
-        //     week52High: data.fiftyTwoWeekHigh || 0,
-        //     week52Low: data.fiftyTwoWeekLow || 0,
-        //     volume: data.regularMarketVolume || 0,
-        //     avgVolume: data.averageDailyVolume10Day || 0,
-        //     marketCap: data.marketCap || 0,
-        //     pe: data.trailingPE || 0,
-        //     eps: data.epsTrailingTwelveMonths || 0
-        // };
-        // return stockData;
-        
-    } catch (error) {
-        console.error('Yahoo Finance API error:', error);
-        throw error;
+        // Method 3: Try alternative URL format
+        async () => {
+            console.log('Trying alternative URL format...');
+            const altUrl = GOOGLE_SHEETS_CSV_URL.replace('/pub?output=csv', '/export?format=csv');
+            const response = await fetch(altUrl, {
+                method: 'GET',
+                mode: 'cors',
+                headers: {
+                    'Accept': 'text/csv,text/plain,*/*'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+            }
+            
+            return await response.text();
+        }
+    ];
+    
+    let lastError;
+    
+    // Try each method
+    for (let i = 0; i < fetchMethods.length; i++) {
+        try {
+            const csvText = await fetchMethods[i]();
+            
+            if (!csvText || csvText.trim().length === 0) {
+                throw new Error('Empty CSV data received from Google Sheets');
+            }
+            
+            console.log(`CSV data received via method ${i + 1}, length:`, csvText.length);
+            
+            const stockData = parseCSVForStock(csvText, symbol);
+            
+            if (!stockData) {
+                throw new Error(`Stock ${symbol} not found in Google Sheets data`);
+            }
+            
+            console.log(`✅ Successfully fetched ${symbol} from Google Sheets (method ${i + 1})`);
+            return stockData;
+            
+        } catch (error) {
+            console.warn(`Method ${i + 1} failed:`, error.message);
+            lastError = error;
+            continue;
+        }
     }
+    
+    // All methods failed
+    console.error('All fetch methods failed. Last error:', lastError);
+    
+    // More specific error messages
+    if (lastError.name === 'TypeError' && lastError.message.includes('Failed to fetch')) {
+        throw new Error('Network error: Unable to connect to Google Sheets. Check your internet connection or sheet permissions.');
+    } else if (lastError.message.includes('CORS')) {
+        throw new Error('CORS error: Google Sheets access blocked. Make sure the sheet is publicly accessible.');
+    }
+    
+    throw lastError;
+}
+
+// Parse CSV data and find specific stock
+function parseCSVForStock(csvText, symbol) {
+    const lines = csvText.trim().split('\n');
+    
+    if (lines.length < 2) {
+        throw new Error('Invalid CSV format: no data rows');
+    }
+    
+    // Parse header row
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    console.log('CSV Headers:', headers);
+    
+    // Find the stock row
+    for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+        
+        // Assuming first column is symbol
+        if (values[0] === symbol) {
+            return parseStockDataFromCSV(headers, values);
+        }
+    }
+    
+    return null; // Stock not found
+}
+
+// Convert CSV row to stock data object
+function parseStockDataFromCSV(headers, values) {
+    const stockData = {};
+    
+    // Map CSV columns to our stock data structure
+    for (let i = 0; i < headers.length; i++) {
+        const header = headers[i].toLowerCase();
+        const value = values[i];
+        
+        // Map common column names to our format
+        if (header.includes('symbol')) {
+            stockData.symbol = value;
+        } else if (header.includes('name') || header.includes('company')) {
+            stockData.name = value;
+        } else if (header.includes('sector') || header.includes('industry')) {
+            stockData.sector = value;
+        } else if (header.includes('price') || header.includes('current')) {
+            stockData.price = parseFloat(value) || 0;
+        } else if (header.includes('previous') || header.includes('close')) {
+            stockData.previousClose = parseFloat(value) || 0;
+        } else if (header.includes('open')) {
+            stockData.open = parseFloat(value) || 0;
+        } else if (header.includes('high') && !header.includes('52')) {
+            stockData.dayHigh = parseFloat(value) || 0;
+        } else if (header.includes('low') && !header.includes('52')) {
+            stockData.dayLow = parseFloat(value) || 0;
+        } else if (header.includes('52') && header.includes('high')) {
+            stockData.week52High = parseFloat(value) || 0;
+        } else if (header.includes('52') && header.includes('low')) {
+            stockData.week52Low = parseFloat(value) || 0;
+        } else if (header.includes('volume')) {
+            stockData.volume = parseInt(value) || 0;
+        } else if (header.includes('market') && header.includes('cap')) {
+            stockData.marketCap = parseFloat(value) || 0;
+        } else if (header.includes('pe') || header.includes('p/e')) {
+            stockData.pe = parseFloat(value) || 0;
+        } else if (header.includes('eps')) {
+            stockData.eps = parseFloat(value) || 0;
+        }
+    }
+    
+    // Set defaults for missing values
+    stockData.symbol = stockData.symbol || 'N/A';
+    stockData.name = stockData.name || stockData.symbol;
+    stockData.sector = stockData.sector || 'N/A';
+    stockData.price = stockData.price || 0;
+    stockData.previousClose = stockData.previousClose || stockData.price;
+    stockData.open = stockData.open || stockData.price;
+    stockData.dayHigh = stockData.dayHigh || stockData.price * 1.02;
+    stockData.dayLow = stockData.dayLow || stockData.price * 0.98;
+    stockData.week52High = stockData.week52High || stockData.price * 1.15;
+    stockData.week52Low = stockData.week52Low || stockData.price * 0.85;
+    stockData.volume = stockData.volume || 1000000;
+    stockData.avgVolume = stockData.avgVolume || stockData.volume;
+    stockData.marketCap = stockData.marketCap || 0;
+    stockData.pe = stockData.pe || 0;
+    stockData.eps = stockData.eps || 0;
+    
+    return stockData;
 }
 
 // ===================================
@@ -386,23 +598,23 @@ function displayPredictions(predictions, currentPrice) {
 
 function formatCurrency(value) {
     if (value === null || value === undefined) return 'N/A';
-    return 'Rp ' + Math.round(value).toLocaleString('id-ID');
+    return '$' + Math.round(value).toLocaleString('en-US');
 }
 
 function formatNumber(value) {
     if (value === null || value === undefined) return 'N/A';
-    return value.toLocaleString('id-ID');
+    return value.toLocaleString('en-US');
 }
 
 function formatMarketCap(value) {
     if (value === null || value === undefined) return 'N/A';
     
     if (value >= 1e12) {
-        return 'Rp ' + (value / 1e12).toFixed(2) + 'T';
+        return '$' + (value / 1e12).toFixed(2) + 'T';
     } else if (value >= 1e9) {
-        return 'Rp ' + (value / 1e9).toFixed(2) + 'B';
+        return '$' + (value / 1e9).toFixed(2) + 'B';
     } else if (value >= 1e6) {
-        return 'Rp ' + (value / 1e6).toFixed(2) + 'M';
+        return '$' + (value / 1e6).toFixed(2) + 'M';
     }
     return formatCurrency(value);
 }

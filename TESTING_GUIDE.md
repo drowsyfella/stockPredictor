@@ -110,7 +110,7 @@ Status: [ ]
 #### Test Case 2.4: Current Price
 ```
 Select: Any stock
-Expected: Price in format "Rp X,XXX"
+Expected: Price in format "$X,XXX"
 Status: [ ]
 ```
 
@@ -138,7 +138,7 @@ Status: [ ]
 #### Test Case 2.8: Market Cap
 ```
 Select: Any stock
-Expected: Formatted (e.g., "Rp 1.2T" or "Rp 500B")
+Expected: Formatted (e.g., "$1.2T" or "$500B")
 Status: [ ]
 ```
 

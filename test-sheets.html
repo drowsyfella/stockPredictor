@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Sheets Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Google Sheets Integration Test</h1>
+    
+    <button onclick="testGoogleSheetsConnection()">Test Google Sheets Connection</button>
+    <button onclick="testCSVParsing()">Test CSV Parsing</button>
+    <button onclick="clearResults()">Clear Results</button>
+    
+    <div id="results"></div>
+
+    <script>
+        const GOOGLE_SHEETS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT-RkFu9NSR9i9PQEwd9-1TmW7JiZuZyAYxyaGqNG9V3i8vr7WQQaqFvx01bzjZbL3G7rGPkdmRBXyl/pub?output=csv';
+        
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            results.appendChild(div);
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+        
+        async function testGoogleSheetsConnection() {
+            addResult('🔄 Testing Google Sheets connection...', 'info');
+            
+            try {
+                const response = await fetch(GOOGLE_SHEETS_CSV_URL, {
+                    method: 'GET',
+                    mode: 'cors',
+                    headers: {
+                        'Accept': 'text/csv,text/plain,*/*'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const csvText = await response.text();
+                
+                addResult(`✅ Successfully connected to Google Sheets!<br>
+                          📊 Data length: ${csvText.length} characters<br>
+                          📝 Lines: ${csvText.split('\n').length}`, 'success');
+                
+                // Show first few lines as preview
+                const lines = csvText.split('\n').slice(0, 5);
+                addResult(`📋 CSV Preview:<br><pre>${lines.join('\n')}</pre>`, 'info');
+                
+            } catch (error) {
+                addResult(`❌ Connection failed: ${error.message}`, 'error');
+                
+                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    addResult('💡 This might be a CORS issue. Make sure the Google Sheet is publicly accessible.', 'info');
+                }
+            }
+        }
+        
+        async function testCSVParsing() {
+            addResult('🔄 Testing CSV parsing...', 'info');
+            
+            try {
+                const response = await fetch(GOOGLE_SHEETS_CSV_URL, {
+                    method: 'GET',
+                    mode: 'cors',
+                    headers: {
+                        'Accept': 'text/csv,text/plain,*/*'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const csvText = await response.text();
+                const lines = csvText.trim().split('\n');
+                
+                if (lines.length < 2) {
+                    throw new Error('CSV has no data rows');
+                }
+                
+                const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+                addResult(`📋 Headers found: ${headers.join(', ')}`, 'success');
+                
+                // Parse first data row as example
+                if (lines.length > 1) {
+                    const firstRow = lines[1].split(',').map(v => v.trim().replace(/"/g, ''));
+                    addResult(`📊 First data row: ${firstRow.join(', ')}`, 'info');
+                    
+                    // Try to identify stock data structure
+                    const stockData = {};
+                    for (let i = 0; i < headers.length; i++) {
+                        const header = headers[i].toLowerCase();
+                        const value = firstRow[i];
+                        
+                        if (header.includes('symbol')) stockData.symbol = value;
+                        else if (header.includes('name')) stockData.name = value;
+                        else if (header.includes('price')) stockData.price = parseFloat(value) || 0;
+                    }
+                    
+                    addResult(`🎯 Parsed stock data: ${JSON.stringify(stockData, null, 2)}`, 'success');
+                }
+                
+            } catch (error) {
+                addResult(`❌ CSV parsing failed: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
